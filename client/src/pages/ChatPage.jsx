@@ -16,6 +16,10 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 export default function ChatPage() {
   const [conversations, setConversations] = useState([]);
@@ -307,13 +311,46 @@ export default function ChatPage() {
                       </span>
                     </div>
                     <div className={`
-                      rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed shadow-sm whitespace-pre-wrap
+                      rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed shadow-sm
                       ${msg.role === 'user' 
-                        ? 'bg-primary text-primary-foreground rounded-tr-sm' 
-                        : 'bg-card border text-card-foreground rounded-tl-sm'
+                        ? 'bg-primary text-primary-foreground rounded-tr-sm whitespace-pre-wrap' 
+                        : 'bg-card border text-card-foreground rounded-tl-sm prose prose-sm dark:prose-invert max-w-none'
                       }
                     `}>
-                      {msg.content}
+                      {msg.role === 'user' ? (
+                        msg.content
+                      ) : (
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            code({node, inline, className, children, ...props}) {
+                              const match = /language-(\w+)/.exec(className || '')
+                              return !inline && match ? (
+                                <div className="relative group mt-4 mb-4">
+                                  <div className="absolute top-0 left-0 px-3 py-1 text-xs font-mono text-zinc-400 bg-zinc-800/50 rounded-br-lg rounded-tl-md border-b border-r border-zinc-700/50 z-10">
+                                    {match[1]}
+                                  </div>
+                                  <SyntaxHighlighter
+                                    style={vscDarkPlus}
+                                    language={match[1]}
+                                    PreTag="div"
+                                    className="rounded-md !mt-0 !pt-8 !text-sm border border-zinc-800"
+                                    {...props}
+                                  >
+                                    {String(children).replace(/\n$/, '')}
+                                  </SyntaxHighlighter>
+                                </div>
+                              ) : (
+                                <code className="bg-muted/50 text-foreground px-1.5 py-0.5 rounded-md text-[0.85em] font-mono border" {...props}>
+                                  {children}
+                                </code>
+                              )
+                            }
+                          }}
+                        >
+                          {msg.content}
+                        </ReactMarkdown>
+                      )}
                     </div>
                   </div>
 
