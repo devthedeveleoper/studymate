@@ -1,5 +1,6 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_async_session
@@ -160,6 +161,74 @@ async def send_message(
             for c in chunks
         ],
     )
+
+
+@router.post("/{conversation_id}/stream")
+async def stream_message(
+    conversation_id: uuid.UUID,
+    data: ChatRequest,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """
+    Stream an AI response back to the client.
+    """
+    conv = await _get_user_conversation(conversation_id, user.id, session)
+    provider = get_ai_provider()
+
+    user_msg = Message(
+        conversation_id=conv.id,
+        role=MessageRole.USER,
+        content=data.message,
+    )
+    session.add(user_msg)
+    await session.flush()
+
+    chunks = await search_similar_chunks(
+        query=data.message,
+        ai_provider=provider,
+        session=session,
+        user_id=user.id,
+        document_id=conv.document_id,
+        top_k=5,
+    )
+    context_texts = [c.content for c in chunks]
+
+    history_stmt = (
+        select(Message)
+        .where(Message.conversation_id == conv.id)
+        .order_by(Message.created_at.asc())
+    )
+    history_result = await session.execute(history_stmt)
+    history = [
+        {"role": m.role.value, "content": m.content}
+        for m in history_result.scalars().all()
+    ]
+
+    async def stream_generator():
+        full_answer = ""
+        async for chunk in provider.generate_stream(
+            prompt=data.message,
+            context=context_texts,
+            history=history[:-1],
+        ):
+            full_answer += chunk
+            yield chunk
+
+        # Save to DB after streaming completes
+        assistant_msg = Message(
+            conversation_id=conv.id,
+            role=MessageRole.ASSISTANT,
+            content=full_answer,
+        )
+        session.add(assistant_msg)
+
+        if len(history) <= 1:
+            conv.title = data.message[:100]
+
+        await session.commit()
+
+    return StreamingResponse(stream_generator(), media_type="text/plain")
 
 
 @router.delete("/{conversation_id}")

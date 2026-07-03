@@ -99,20 +99,69 @@ export default function ChatPage() {
     ]);
 
     try {
-      const res = await api.post(`/chat/${convId}/message`, { message: userMessage });
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/chat/${convId}/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ message: userMessage })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to stream response');
+      }
+
+      setSending(false); // Text is arriving, stop the bouncing dots
+
+      // Remove temp user message, replace with final user message and empty stream message
+      const streamMsgId = `asst-stream-${Date.now()}`;
       setMessages((prev) => {
         const withoutTemp = prev.filter((m) => m.id !== 'temp');
         return [
           ...withoutTemp,
           { id: `user-${Date.now()}`, role: 'user', content: userMessage, created_at: new Date().toISOString() },
-          { id: `asst-${Date.now()}`, role: 'assistant', content: res.data.answer, created_at: new Date().toISOString() },
+          { id: streamMsgId, role: 'assistant', content: '', created_at: new Date().toISOString() },
         ];
       });
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullResponse = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value, { stream: true });
+        fullResponse += chunk;
+        
+        // Update UI incrementally
+        setMessages((prev) => {
+          const newMsgs = [...prev];
+          const lastIdx = newMsgs.length - 1;
+          if (newMsgs[lastIdx].id === streamMsgId) {
+            newMsgs[lastIdx].content = fullResponse;
+          }
+          return newMsgs;
+        });
+      }
+
+      // finalize id
+      setMessages((prev) => {
+        const newMsgs = [...prev];
+        const lastIdx = newMsgs.length - 1;
+        if (newMsgs[lastIdx].id === streamMsgId) {
+          newMsgs[lastIdx].id = `asst-${Date.now()}`;
+        }
+        return newMsgs;
+      });
+
       api.get('/chat/').then((r) => setConversations(r.data)).catch(() => {});
-    } catch {
+    } catch (err) {
       toast.error('Failed to get a response');
       setMessages((prev) => prev.filter((m) => m.id !== 'temp'));
-    } finally {
       setSending(false);
     }
   }

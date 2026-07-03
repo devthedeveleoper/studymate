@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 
 
+from typing import AsyncGenerator
+
 class AIProvider(ABC):
     """
     Base class for AI providers (Ollama for dev, Gemini for prod).
@@ -25,6 +27,18 @@ class AIProvider(ABC):
 
         Returns:
             The generated response text.
+        """
+
+    @abstractmethod
+    async def generate_stream(
+        self,
+        prompt: str,
+        context: list[str],
+        history: list[dict] | None = None,
+    ) -> AsyncGenerator[str, None]:
+        """
+        Generate a streamed response given a user prompt, context chunks, and history.
+        Yields text chunks as they are generated.
         """
 
     @abstractmethod

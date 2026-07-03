@@ -54,6 +54,32 @@ class GroqProvider(AIProvider):
         )
         return response.choices[0].message.content
 
+    async def generate_stream(
+        self,
+        prompt: str,
+        context: list[str],
+        history: list[dict] | None = None,
+    ):
+        rag_prompt = self._build_rag_prompt(prompt, context)
+        
+        messages = []
+        if history:
+            for msg in history[-10:]:
+                role = "assistant" if msg["role"] == "model" else msg["role"]
+                messages.append({"role": role, "content": msg["content"]})
+                
+        messages.append({"role": "user", "content": rag_prompt})
+
+        response = await self.client.chat.completions.create(
+            model=self.chat_model,
+            messages=messages,
+            stream=True,
+        )
+        
+        async for chunk in response:
+            if chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
+
     async def embed(self, texts: list[str]) -> list[list[float]]:
         if self.gemini_client:
             def _embed():
