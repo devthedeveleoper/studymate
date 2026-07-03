@@ -22,8 +22,10 @@ class Settings(BaseSettings):
     OLLAMA_CHAT_MODEL: str = "qwen3:4b"
     OLLAMA_EMBED_MODEL: str = "nomic-embed-text"
 
+    # Groq & Gemini Configuration
     GROQ_API_KEY: str = ""
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    GEMINI_API_KEY: str = ""
 
     # chunking and embedding config
     CHUNK_SIZE: int = 1000

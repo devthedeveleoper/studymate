@@ -5,9 +5,12 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
+import asyncio
+from google import genai
+
 class GroqProvider(AIProvider):
     """
-    AI provider using Groq for blazingly fast inference and massive free tier limits.
+    AI provider using Groq for blazingly fast inference and Gemini for embeddings.
     """
 
     def __init__(self):
@@ -18,10 +21,15 @@ class GroqProvider(AIProvider):
         )
         self.chat_model = settings.GROQ_MODEL
         
-        # Groq doesn't provide embedding models on the free tier yet,
-        # so we fallback to Ollama (which the user already has set up for embeddings)
-        from app.services.ollama_provider import OllamaProvider
-        self.embed_fallback = OllamaProvider()
+        # We use Gemini for embeddings because Groq doesn't offer embedding models yet
+        if settings.GEMINI_API_KEY:
+            self.gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+            self.embed_fallback = None
+        else:
+            # Fallback to Ollama if user hasn't set GEMINI_API_KEY yet
+            from app.services.ollama_provider import OllamaProvider
+            self.embed_fallback = OllamaProvider()
+            self.gemini_client = None
 
     async def generate(
         self,
@@ -47,11 +55,28 @@ class GroqProvider(AIProvider):
         return response.choices[0].message.content
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
-        # Fallback to Ollama for embeddings
-        return await self.embed_fallback.embed(texts)
+        if self.gemini_client:
+            def _embed():
+                response = self.gemini_client.models.embed_content(
+                    model='text-embedding-004',
+                    contents=texts
+                )
+                return [emb.values for emb in response.embeddings]
+            return await asyncio.to_thread(_embed)
+        else:
+            return await self.embed_fallback.embed(texts)
 
     async def embed_query(self, text: str) -> list[float]:
-        return await self.embed_fallback.embed_query(text)
+        if self.gemini_client:
+            def _embed():
+                response = self.gemini_client.models.embed_content(
+                    model='text-embedding-004',
+                    contents=text
+                )
+                return response.embeddings[0].values
+            return await asyncio.to_thread(_embed)
+        else:
+            return await self.embed_fallback.embed_query(text)
 
     async def generate_structured(
         self,
