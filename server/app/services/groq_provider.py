@@ -86,7 +86,7 @@ class GroqProvider(AIProvider):
             # but usually a 2D list for multiple elements. HuggingFace feature_extraction returns ndarray-like lists.
             res = await self.hf_client.feature_extraction(
                 texts,
-                model="BAAI/bge-small-en-v1.5"
+                model="BAAI/bge-base-en-v1.5"
             )
             import numpy as np
             # Convert to standard Python lists
@@ -98,7 +98,7 @@ class GroqProvider(AIProvider):
         if self.hf_client:
             res = await self.hf_client.feature_extraction(
                 text,
-                model="BAAI/bge-small-en-v1.5"
+                model="BAAI/bge-base-en-v1.5"
             )
             import numpy as np
             # Squeeze to 1D array if needed, then tolist
