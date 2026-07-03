@@ -52,9 +52,9 @@ export default function Sidebar({ isOpen, onToggle }) {
       `}>
         {/* Header */}
         <div className="flex h-16 shrink-0 items-center justify-between px-6 border-b">
-          <div className="flex items-center gap-3 font-semibold text-primary">
+          <div className="flex items-center gap-3 font-heading font-bold text-primary tracking-tight">
             <BookOpen className="h-6 w-6" />
-            <span className="text-lg">StudyMate</span>
+            <span className="text-xl">StudyMate</span>
           </div>
           <Button variant="ghost" size="icon" className="md:hidden" onClick={onToggle}>
             <X className="h-5 w-5" />

@@ -26,7 +26,7 @@ export default function Layout() {
               <Menu className="h-5 w-5" />
               <span className="sr-only">Open sidebar</span>
             </Button>
-            <div className="font-semibold text-lg">StudyMate</div>
+            <div className="font-heading font-bold text-xl tracking-tight text-primary">StudyMate</div>
           </div>
           <ModeToggle />
         </header>
