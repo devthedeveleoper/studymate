@@ -6,11 +6,11 @@ from app.core.config import get_settings
 settings = get_settings()
 
 import asyncio
-from google import genai
+from huggingface_hub import AsyncInferenceClient
 
 class GroqProvider(AIProvider):
     """
-    AI provider using Groq for blazingly fast inference and Gemini for embeddings.
+    AI provider using Groq for blazingly fast inference and HuggingFace for embeddings.
     """
 
     def __init__(self):
@@ -21,15 +21,15 @@ class GroqProvider(AIProvider):
         )
         self.chat_model = settings.GROQ_MODEL
         
-        # We use Gemini for embeddings because Groq doesn't offer embedding models yet
-        if settings.GEMINI_API_KEY:
-            self.gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        # We use HuggingFace for embeddings because Groq doesn't offer embedding models yet
+        if settings.HUGGINGFACE_API_KEY:
+            self.hf_client = AsyncInferenceClient(token=settings.HUGGINGFACE_API_KEY)
             self.embed_fallback = None
         else:
-            # Fallback to Ollama if user hasn't set GEMINI_API_KEY yet
+            # Fallback to Ollama if user hasn't set HUGGINGFACE_API_KEY yet
             from app.services.ollama_provider import OllamaProvider
             self.embed_fallback = OllamaProvider()
-            self.gemini_client = None
+            self.hf_client = None
 
     async def generate(
         self,
@@ -81,26 +81,31 @@ class GroqProvider(AIProvider):
                 yield chunk.choices[0].delta.content
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
-        if self.gemini_client:
-            def _embed():
-                response = self.gemini_client.models.embed_content(
-                    model='text-embedding-004',
-                    contents=texts
-                )
-                return [emb.values for emb in response.embeddings]
-            return await asyncio.to_thread(_embed)
+        if self.hf_client:
+            # We must use list comprehension because the API sometimes returns a flat list if texts has only 1 element,
+            # but usually a 2D list for multiple elements. HuggingFace feature_extraction returns ndarray-like lists.
+            res = await self.hf_client.feature_extraction(
+                texts,
+                model="BAAI/bge-small-en-v1.5"
+            )
+            import numpy as np
+            # Convert to standard Python lists
+            return np.array(res).tolist()
         else:
             return await self.embed_fallback.embed(texts)
 
     async def embed_query(self, text: str) -> list[float]:
-        if self.gemini_client:
-            def _embed():
-                response = self.gemini_client.models.embed_content(
-                    model='text-embedding-004',
-                    contents=text
-                )
-                return response.embeddings[0].values
-            return await asyncio.to_thread(_embed)
+        if self.hf_client:
+            res = await self.hf_client.feature_extraction(
+                text,
+                model="BAAI/bge-small-en-v1.5"
+            )
+            import numpy as np
+            # Squeeze to 1D array if needed, then tolist
+            arr = np.array(res)
+            if arr.ndim > 1:
+                arr = arr.squeeze()
+            return arr.tolist()
         else:
             return await self.embed_fallback.embed_query(text)
 
