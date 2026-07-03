@@ -27,7 +27,12 @@ app = FastAPI(
 
 import os
 
+from app.middleware.rate_limit import RateLimitMiddleware
+
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
+# Add Rate Limiting (this will run after CORS validates the origin)
+app.add_middleware(RateLimitMiddleware)
 
 # CORS — allow the Vite dev server and eventual production frontend
 app.add_middleware(
